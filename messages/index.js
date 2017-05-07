@@ -13,19 +13,20 @@ var connector = useEmulator ? new builder.ChatConnector() : new botbuilder_azure
 
 var bot = new builder.UniversalBot(connector);
 
-bot.dialog('/',[  
-    function (session, args, next) {
-        if (!session.userData.name) {
-            session.beginDialog('/name');
-        } else {
-            next();
-        }
-    },
-    function (session, results) {
-        session.send('Hello %s!', session.userData.name);
-        session.beginDialog('/adventure');
+var firstIntents=new builder.IntentDialog();
+
+bot.dialog('/',firstIntents);
+
+firstIntents.onBegin(function(session){
+    if (!session.userData.name) {
+       session.send('Welcome to Text Adventure Bot!');
+       session.beginDialog('/name');
+    } else {
+       session.send('Welcome back to Text Adventure Bot %s!',session.userData.name);
+       session.beginDialog('/adventure');
     }
-]);
+});
+
 
 bot.dialog('/name',[
     function(session){
@@ -33,29 +34,54 @@ bot.dialog('/name',[
     },
     function (session, results) {
         session.userData.name = results.response;
-        session.endDialog();
+        session.replaceDialog('/adventure');
     }
 ]);
 
-var intents = new builder.IntentDialog();
+var adventureIntents = new builder.IntentDialog();
 
-intents.matches(/[Nn]orth/,function(session){
-    session.send('Going North.');
+bot.dialog('/adventure',adventureIntents);
+
+var look = function(session){
+    var reply = new builder.Message(session)
+        .text(session.userData.curretnDescription)
+        .attachments([{
+            contentType:'image/jpeg', 
+            contentUrl:session.userData.currentPic
+        }]);
+    session.send(reply);
+};
+
+adventureIntents.onBegin(function(session){
+    session.userData.currentPic = 'http://3.bp.blogspot.com/_eFESZhWXX-A/SWFYxAYP9vI/AAAAAAAAAoA/9UmdsQC8QhY/s400/woods.jpg';
+    session.userData.curretnDescription = 'You are in a large wood.\nThere are exists to the North and East';
+    session.userData.exists = ['north','east'];
+    look(session);
 });
 
-bot.dialog('/adventure',[
-    function(session){
-        var pic = 'http://3.bp.blogspot.com/_eFESZhWXX-A/SWFYxAYP9vI/AAAAAAAAAoA/9UmdsQC8QhY/s400/woods.jpg';
-        var reply = new builder.Message(session)
-            .text('You are in a large wood.\nThere are exists to the North and East')
-            .attachments([{
-                contentType:'image/jpeg', 
-                contentUrl:pic
-            }]);
-        session.send(reply);
-    },
-    intents
-]);
+var checkDirection = function(session,dir){
+    return session.userData.exists.indexOf(dir)>-1;
+};
+
+adventureIntents.matches(/[Nn]orth/,function(session){
+    if(checkDirection(session,'north')){
+        session.send('Going North');
+    } else {
+        session.send('There is no exit to the north!');
+    }
+});
+
+adventureIntents.matches(/[Ss]outh/,function(session){
+    if(checkDirection(session,'south')){
+        session.send('Going South');
+    } else {
+        session.send('There is no exit to the south');
+    }
+});
+
+adventureIntents.matches(/[Ll]ook/,function(session){
+    look(session);
+});
 
 if (useEmulator) {
     var restify = require('restify');
